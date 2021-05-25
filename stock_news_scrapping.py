@@ -52,6 +52,68 @@ def moneycontrol(year, main_dict, company, company_code):
 	main_dict[company]['moneycontrol']['Subtitle'] = res_subtitle_list
 	return main_dict
 
+def investing(year, main_dict, company, company_code):
+	main_dict[company]['Investing.com'] = {}
+	res_date_list = []
+	res_title_list = []
+	res_subtitle_list = []
+	page = 0
+
+	while (True):
+		page = page + 1
+		print(page)
+		flag = 0
+		site = str('https://in.investing.com/equities/')+company_code+('-news/')+str(page)
+		res = requests.get(site, headers={"User-Agent": "Mozilla/5.0"})
+		response = TextResponse(res.url, body=res.text, encoding='utf-8')
+
+		temp_date_list = response.xpath('//footer/ul/li/time/text()').extract()
+		try:
+			temp_date_list = [datetime.strptime(i,"%b %d, %Y %H:%M") for i in temp_date_list]
+		except:
+			print('skip...')
+			continue
+		if all(int(i.year)==year-1 for i in temp_date_list):
+			print('break')
+			break
+
+		if all(int(i.year)==year for i in temp_date_list):
+			res_date_list.extend(temp_date_list)
+		elif any(int(i.year)==year for i in temp_date_list):
+			flag = 1
+			start = [i for i, e in enumerate([int(i.year) for i in temp_date_list]) if e == year][0]
+			end = [i for i, e in enumerate([int(i.year) for i in temp_date_list]) if e == year][-1] + 1
+			res_date_list.extend(temp_date_list[start:end])
+		else:
+			print('Skip...')
+			continue
+
+		temp_title_list = response.css(".link::text").extract()
+		temp_title_list = [i.replace('\n', '') for i in temp_title_list if i != '\n']
+
+		if flag == 0:
+			res_title_list.extend(temp_title_list)
+		else:
+			res_title_list.extend(temp_title_list[start:end])
+
+		temp_subtitle_list = response.css(".summery::text").extract()
+		temp_subtitle_list = [i.replace('\n', ' ') for i in temp_subtitle_list]
+		if flag == 0:
+			res_subtitle_list.extend(temp_subtitle_list)
+		else:
+			res_subtitle_list.extend(temp_subtitle_list[start:end])
+
+	# checks
+	if len(res_title_list) == len(res_date_list) == len(res_subtitle_list):
+		print("All ok.")
+	else:
+		print("Check Failed!!")
+
+	main_dict[company]['Investing.com']['Title'] = res_title_list
+	main_dict[company]['Investing.com']['Date & Time'] = res_date_list
+	main_dict[company]['Investing.com']['Subtitle'] = res_subtitle_list
+	return main_dict
+
 def businesstoday(year, main_dict, company, company_code):
 	main_dict[company]['BusinessToday'] = {}
 	res_date_list = []
@@ -178,7 +240,7 @@ if __name__ == "__main__":
 					('Bharti Airtel', 'BTV'), ('Tata Motors', 'TEL'), ('ITC', 'ITC'), ('Maruti Suzuki', 'MU01'),
 					('ONGC', 'ONG'), ('Hindustan Unilever', 'HL'), ('TCS', 'TCS'), ('Larsen & Toubro', 'LT'),
 					('Sun Pharmaceutical Industries', 'SPI'), ('Dr Reddy', 'DRL')]
-	comp_code = {
+	bt_comp_code = {
 					'Reliance': 'reliance',
 					'Infosys': 'infosys',
 					'State Bank of India': 'sbi',
@@ -194,12 +256,29 @@ if __name__ == "__main__":
 					'Sun Pharmaceutical Industries': 'sun_pharma',
 					'Dr Reddy': 'Dr_Reddy'
 				}
+	inv_comp_code = {
+					'Reliance': 'reliance-industries',
+					'Infosys': 'infosys',
+					'State Bank of India': 'state-bank-of-india',
+					'ICICI Bank': 'icici-bank-ltd',
+					'Bharti Airtel': 'bharti-airtel',
+					'Tata Motors': 'tata-motors-ltd',
+					'ITC': 'itc',
+					'Maruti Suzuki': 'maruti-suzuki-india',
+					'ONGC': 'oil---natural-gas-corporation',
+					'Hindustan Unilever': 'hindustan-unilever',
+					'TCS': 'tata-consultancy-services',
+					'Larsen & Toubro': 'larsen---toubro',
+					'Sun Pharmaceutical Industries': 'sun-pharma-advanced-research',
+					'Dr Reddy': 'dr-reddys-laboratories'
+				}
 	for company, company_code in company_list:
 		print(company)
 		main_dict[company] = {}
 		main_dict = moneycontrol(year, main_dict, company, company_code)
-		# main_dict = IIFL(year, main_dict, company, comp_code[company]) # takes much more time to run
-		main_dict = businesstoday(year, main_dict, company, comp_code[company])
+		# main_dict = IIFL(year, main_dict, company, bt_comp_code[company]) # takes much more time to run
+		# main_dict = businesstoday(year, main_dict, company, bt_comp_code[company])
+		main_dict = investing(year, main_dict, company, inv_comp_code[company])
 	
 	with open('news.json', 'w') as fp:
 		json.dump(main_dict, fp, default=outputJSON)
